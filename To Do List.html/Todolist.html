@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To Do List & Priority</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom font for a clean look */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c; /* Deep charcoal background */
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Align items to start for multi-column layout */
+            min-height: 100vh; /* Ensure it takes full viewport height */
+            margin: 0;
+            padding: 2rem 1rem; /* Add more padding for better spacing */
+            box-sizing: border-box; /* Include padding in element's total width and height */
+        }
+        /* Style for scrollbar in task lists */
+        .task-list-container {
+            max-height: 70vh; /* Max height before scrolling */
+            overflow-y: auto; /* Enable vertical scrolling */
+            padding-right: 0.5rem; /* Space for scrollbar */
+        }
+        .task-list-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .task-list-container::-webkit-scrollbar-track {
+            background: #2d3748; /* Darker track */
+            border-radius: 4px;
+        }
+        .task-list-container::-webkit-scrollbar-thumb {
+            background-color: #4a5568; /* Dark gray thumb */
+            border-radius: 4px;
+            border: 2px solid #2d3748;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 flex items-center justify-center min-h-screen p-4">
+    <div class="flex flex-col sm:flex-row gap-8 w-full max-w-5xl">
+        <!-- TO DO LIST Container -->
+        <div class="bg-gray-800 rounded-lg shadow-2xl p-6 w-full sm:w-1/2 border border-gray-700">
+            <h1 class="text-3xl font-extrabold text-gray-100 mb-6 text-center">TO DO LIST</h1>
+
+            <!-- Input Section for To Do List -->
+            <div class="flex flex-col sm:flex-row gap-3 mb-6">
+                <input type="text" id="taskInput" placeholder="Add a new task..."
+                       class="flex-grow p-3 bg-gray-700 text-gray-100 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-600 placeholder-gray-400 text-base">
+                <button id="addTaskBtn"
+                        class="bg-sky-700 hover:bg-sky-800 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                    Add Task
+                </button>
+            </div>
+            <button id="elaborateTaskBtn"
+                    class="bg-red-700 hover:bg-red-800 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 w-full mb-6">
+                ✨ Strategize Task
+            </button>
+
+
+            <!-- Loading Indicator for To Do List -->
+            <div id="loadingIndicator" class="hidden flex items-center justify-center py-4">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+                <span class="ml-3 text-red-300 font-medium">Formulating strategy...</span>
+            </div>
+
+            <!-- Task List Section -->
+            <div id="taskList" class="space-y-3 task-list-container">
+                <!-- Tasks will be dynamically added here -->
+            </div>
+        </div>
+
+        <!-- PRIORITY Container -->
+        <div class="bg-gray-800 rounded-lg shadow-2xl p-6 w-full sm:w-1/2 border border-gray-700">
+            <h1 class="text-3xl font-extrabold text-red-400 mb-6 text-center">PRIORITY</h1>
+
+            <!-- Input Section for Priority List -->
+            <div class="flex flex-col sm:flex-row gap-3 mb-6">
+                <input type="text" id="priorityTaskInput" placeholder="Add a priority task..."
+                       class="flex-grow p-3 bg-gray-700 text-gray-100 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 placeholder-gray-400 text-base">
+                <button id="addPriorityTaskBtn"
+                        class="bg-red-700 hover:bg-red-800 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                    Add Priority
+                </button>
+            </div>
+
+            <!-- Priority Task List Section -->
+            <div id="priorityTaskList" class="space-y-3 task-list-container">
+                <!-- Priority tasks will be dynamically added here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get references to DOM elements
+        const taskInput = document.getElementById('taskInput');
+        const addTaskBtn = document.getElementById('addTaskBtn');
+        const elaborateTaskBtn = document.getElementById('elaborateTaskBtn');
+        const taskList = document.getElementById('taskList');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+
+        const priorityTaskInput = document.getElementById('priorityTaskInput');
+        const addPriorityTaskBtn = document.getElementById('addPriorityTaskBtn');
+        const priorityTaskList = document.getElementById('priorityTaskList');
+
+        /**
+         * Displays a temporary message box.
+         * @param {string} message - The message to display.
+         * @param {string} type - 'success' or 'error'.
+         */
+        function showMessageBox(message, type = 'error') {
+            const messageBox = document.createElement('div');
+            messageBox.className = `fixed top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg shadow-lg z-50 ${type === 'success' ? 'bg-green-600' : 'bg-red-600'} text-white`;
+            messageBox.textContent = message;
+            document.body.appendChild(messageBox);
+            setTimeout(() => messageBox.remove(), 2500); // Remove after 2.5 seconds
+        }
+
+        /**
+         * Adds a new task to a specified list.
+         * @param {string} taskText - The text content of the task.
+         * @param {boolean} isCompleted - Whether the task is initially completed.
+         * @param {HTMLElement} targetList - The HTML element (ul or div) to add the task to.
+         * @param {string} type - 'normal' or 'priority' to adjust styling.
+         */
+        function addTask(taskText, isCompleted = false, targetList, type = 'normal') {
+            if (taskText.trim() === '') {
+                showMessageBox('Command input is empty!', 'error');
+                return;
+            }
+
+            // Create a new task item container
+            const taskItem = document.createElement('div');
+            taskItem.className = 'flex items-center p-3 rounded-lg shadow-sm border transition-all duration-300 ease-in-out';
+
+            // Adjust styling based on task type (normal or priority)
+            if (type === 'priority') {
+                taskItem.classList.add('bg-red-900', 'bg-opacity-40', 'border-red-700'); /* Muted red for priority */
+            } else {
+                taskItem.classList.add('bg-gray-700', 'border-gray-600');
+            }
+
+
+            // Create a checkbox for the task
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'task-checkbox h-5 w-5 rounded focus:ring-2 cursor-pointer bg-gray-600 border-gray-500';
+            // Adjust checkbox color based on type
+            if (type === 'priority') {
+                checkbox.classList.add('text-red-500', 'focus:ring-red-600');
+            } else {
+                checkbox.classList.add('text-sky-500', 'focus:ring-sky-600');
+            }
+            checkbox.checked = isCompleted; // Set initial checked state
+
+            // Create a span for the task text
+            const taskSpan = document.createElement('span');
+            taskSpan.className = 'ml-3 text-lg text-gray-100 flex-grow';
+            taskSpan.textContent = taskText;
+
+            // Apply 'line-through' style if the task is completed
+            if (isCompleted) {
+                taskSpan.classList.add('line-through', 'text-gray-400');
+                if (type === 'priority') {
+                     taskItem.classList.remove('bg-red-900', 'bg-opacity-40');
+                     taskItem.classList.add('bg-green-900', 'bg-opacity-30');
+                } else {
+                    taskItem.classList.add('bg-green-900', 'bg-opacity-30'); /* Muted green for completed */
+                }
+            }
+
+            // Create a delete button for the task
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'delete-task-btn text-red-400 hover:text-red-300 text-xl font-medium p-1 rounded-full hover:bg-red-900 transition duration-200 ease-in-out ml-2';
+            deleteButton.innerHTML = '&times;'; // Unicode 'times' character for an 'X'
+
+            // Add event listener for checkbox change
+            checkbox.addEventListener('change', () => {
+                if (checkbox.checked) {
+                    taskSpan.classList.add('line-through', 'text-gray-400');
+                    if (type === 'priority') {
+                        taskItem.classList.remove('bg-red-900', 'bg-opacity-40');
+                        taskItem.classList.add('bg-green-900', 'bg-opacity-30');
+                    } else {
+                        taskItem.classList.add('bg-green-900', 'bg-opacity-30');
+                    }
+                } else {
+                    taskSpan.classList.remove('line-through', 'text-gray-400');
+                     if (type === 'priority') {
+                        taskItem.classList.remove('bg-green-900', 'bg-opacity-30');
+                        taskItem.classList.add('bg-red-900', 'bg-opacity-40');
+                    } else {
+                        taskItem.classList.remove('bg-green-900', 'bg-opacity-30');
+                    }
+                }
+            });
+
+            // Add event listener for delete button click
+            deleteButton.addEventListener('click', () => {
+                targetList.removeChild(taskItem); // Remove the task item from the list
+            });
+
+            // Append elements to the task item container
+            taskItem.appendChild(checkbox);
+            taskItem.appendChild(taskSpan);
+            taskItem.appendChild(deleteButton);
+
+            // Prepend the new task item to the target list (newest at top)
+            targetList.prepend(taskItem);
+
+            // Clear the input field after adding the task, but only if it's from a direct user input action
+            if (targetList === taskList) { // If adding to main task list
+                taskInput.value = '';
+            } else if (targetList === priorityTaskList) { // If adding to priority task list
+                priorityTaskInput.value = '';
+            }
+        }
+
+        /**
+         * Uses Gemini API to elaborate on a task and add sub-tasks to the main TO DO LIST.
+         */
+        async function elaborateTask() {
+            const taskToElaborate = taskInput.value.trim();
+            if (taskToElaborate === '') {
+                showMessageBox('Enter a grand mission to strategize!', 'error');
+                return;
+            }
+
+            loadingIndicator.classList.remove('hidden'); // Show loading indicator
+            elaborateTaskBtn.disabled = true; // Disable buttons during processing
+            addTaskBtn.disabled = true;
+            taskInput.disabled = true;
+            addPriorityTaskBtn.disabled = true;
+            priorityTaskInput.disabled = true;
+
+            try {
+                let chatHistory = [];
+                const prompt = `Break down the following task into 3-5 concise, actionable sub-tasks. Provide the response as a JSON array of strings. Example: ["Subtask 1", "Subtask 2", "Subtask 3"]. Task: "${taskToElaborate}"`;
+                chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+
+                const payload = {
+                    contents: chatHistory,
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "ARRAY",
+                            items: {
+                                type: "STRING"
+                            }
+                        }
+                    }
+                };
+                const apiKey = ""; // Canvas will automatically provide the API key
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const jsonString = result.candidates[0].content.parts[0].text;
+                    const subTasks = JSON.parse(jsonString);
+
+                    if (Array.isArray(subTasks) && subTasks.length > 0) {
+                        subTasks.forEach(subTask => addTask(subTask, false, taskList, 'normal')); // Add generated sub-tasks to main list
+                        showMessageBox('Strategic sub-tasks forged!', 'success');
+                        taskInput.value = ''; // Clear input after elaboration
+                    } else {
+                        showMessageBox('No sub-tasks generated. Try a different mission!', 'error');
+                    }
+                } else {
+                    showMessageBox('Failed to generate sub-tasks. Analysis incomplete.', 'error');
+                }
+
+            } catch (error) {
+                console.error('Error elaborating task:', error);
+                showMessageBox('Error forging sub-tasks. System offline.', 'error');
+            } finally {
+                loadingIndicator.classList.add('hidden'); // Hide loading indicator
+                elaborateTaskBtn.disabled = false; // Re-enable buttons
+                addTaskBtn.disabled = false;
+                taskInput.disabled = false;
+                addPriorityTaskBtn.disabled = false;
+                priorityTaskInput.disabled = false;
+            }
+        }
+
+        // Event listener for the "Add Task" button click (for main TO DO LIST)
+        addTaskBtn.addEventListener('click', () => {
+            addTask(taskInput.value, false, taskList, 'normal');
+        });
+
+        // Event listener for the "Elaborate Task" button click
+        elaborateTaskBtn.addEventListener('click', elaborateTask);
+
+        // Event listener for the "Add Priority" button click (for PRIORITY list)
+        addPriorityTaskBtn.addEventListener('click', () => {
+            addTask(priorityTaskInput.value, false, priorityTaskList, 'priority');
+        });
+
+        // Event listener for the "Enter" key press in the main task input field
+        taskInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                addTask(taskInput.value, false, taskList, 'normal');
+            }
+        });
+
+        // Event listener for the "Enter" key press in the priority task input field
+        priorityTaskInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                addTask(priorityTaskInput.value, false, priorityTaskList, 'priority');
+            }
+        });
+
+        // Ensure both task lists start empty on load
+        window.onload = function() {
+            while (taskList.firstChild) {
+                taskList.removeChild(taskList.firstChild);
+            }
+            while (priorityTaskList.firstChild) {
+                priorityTaskList.removeChild(priorityTaskList.firstChild);
+            }
+        };
+    </script>
+</body>
+</html>
